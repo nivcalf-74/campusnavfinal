@@ -1,0 +1,6 @@
+numpy>=1.26
+matplotlib>=3.8
+pytest>=8
+pytest-cov>=4
+ruff>=0.4
+black>=24

@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusNav — ניווט קמפוס A*</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  header {
+    width: 100%;
+    padding: 18px 32px;
+    background: rgba(22,27,34,0.95);
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.4rem; font-weight: 700; color: #58a6ff; }
+  header .badge {
+    font-size: 0.72rem;
+    background: linear-gradient(135deg,#1f6feb,#388bfd);
+    color: #fff;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .header-subtitle {
+    font-size: 0.8rem;
+    color: #8b949e;
+    margin-inline-start: auto;
+  }
+  /* ── Language switcher ── */
+  .lang-switcher { display: flex; gap: 6px; flex-wrap: wrap; }
+  .lang-btn {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #8b949e;
+    border-radius: 6px;
+    padding: 4px 11px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .lang-btn:hover { background: #30363d; color: #e6edf3; }
+  .lang-btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+  .container {
+    width: 100%;
+    max-width: 1100px;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .card {
+    background: rgba(22,27,34,0.9);
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 20px;
+    backdrop-filter: blur(8px);
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: flex-end;
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px; }
+  label { font-size: 0.82rem; color: #8b949e; font-weight: 600; }
+  select {
+    background: #161b22;
+    border: 1px solid #30363d;
+    color: #e6edf3;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    width: 100%;
+  }
+  select:focus { outline: none; border-color: #388bfd; }
+  .field-weight { display: flex; flex-direction: column; gap: 6px; }
+  .weight-btns { display: flex; gap: 6px; }
+  .weight-btn {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #8b949e;
+    border-radius: 6px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.15s;
+  }
+  .weight-btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+  .run-btn {
+    background: linear-gradient(135deg,#238636,#2ea043);
+    border: none;
+    color: #fff;
+    border-radius: 8px;
+    padding: 12px 32px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+    min-height: 48px;
+  }
+  .run-btn:hover { opacity: 0.85; }
+  @media (max-width: 600px) {
+    .run-btn { width: 100%; padding: 14px; font-size: 1.1rem; }
+    .field { min-width: 100%; }
+    .weight-btn { padding: 10px 18px; font-size: 0.9rem; min-height: 44px; }
+    select { font-size: 1rem; padding: 11px 12px; min-height: 44px; }
+    header h1 { font-size: 1.1rem; }
+    .engine-bar { gap: 12px; font-size: 0.78rem; }
+    .lang-btn { padding: 3px 7px; font-size: 0.72rem; }
+  }
+  .engine-bar {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+    color: #8b949e;
+    border-top: 1px solid #21262d;
+    padding-top: 14px;
+    margin-top: 14px;
+  }
+  .engine-stat span { color: #58a6ff; font-weight: 700; }
+  .result-card { display: none; flex-direction: column; gap: 14px; }
+  .result-card.visible { display: flex; }
+  .path-display { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .path-node {
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 6px 11px;
+    font-size: 0.85rem;
+    color: #e6edf3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .path-node .floor-tag { font-size: 0.68rem; color: #8b949e; font-weight: 600; letter-spacing: 0.2px; }
+  .path-node.start { border-color: #2ea043; color: #3fb950; }
+  .path-node.start .floor-tag { color: #2ea043; }
+  .path-node.end { border-color: #f78166; color: #f78166; }
+  .path-node.end .floor-tag { color: #f78166; }
+  .path-node.elevator { border-color: #d2a8ff; color: #d2a8ff; }
+  .path-node.elevator .floor-tag { color: #a371f7; }
+  .path-arrow { color: #30363d; font-size: 1rem; align-self: center; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .stat-box { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 14px; text-align: center; }
+  .stat-box .val { font-size: 1.6rem; font-weight: 700; color: #58a6ff; }
+  .stat-box .lbl { font-size: 0.78rem; color: #8b949e; margin-top: 4px; }
+  .error-msg {
+    color: #f85149;
+    background: rgba(248,81,73,0.1);
+    border: 1px solid rgba(248,81,73,0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+  }
+  canvas { width: 100%; border-radius: 8px; background: #161b22; border: 1px solid #21262d; display: block; }
+  .canvas-controls { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .floor-btn {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #8b949e;
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.15s;
+  }
+  .floor-btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+  .section-title { font-size: 0.9rem; font-weight: 700; color: #8b949e; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CampusNav</h1>
+  <span class="badge">A-Star Algorithm</span>
+  <span class="header-subtitle" data-i18n="header_subtitle">המסלול מחושב באמצעות אלגוריתם A-Star</span>
+  <div class="lang-switcher">
+    <button class="lang-btn active" data-lang="he" onclick="applyLang('he')">🇮🇱 עברית</button>
+    <button class="lang-btn" data-lang="ar" onclick="applyLang('ar')">🇸🇦 عربية</button>
+    <button class="lang-btn" data-lang="en" onclick="applyLang('en')">🇬🇧 English</button>
+    <button class="lang-btn" data-lang="fr" onclick="applyLang('fr')">🇫🇷 Français</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- Controls -->
+  <div class="card">
+    <div class="controls">
+      <div class="field">
+        <label data-i18n="label_source">נקודת מוצא</label>
+        <select id="src"></select>
+      </div>
+      <div class="field">
+        <label data-i18n="label_dest">יעד</label>
+        <select id="tgt"></select>
+      </div>
+      <div class="field-weight">
+        <label data-i18n="label_optimize">מיטוב</label>
+        <div class="weight-btns">
+          <button class="weight-btn active" data-w="time" data-i18n="btn_time">זמן</button>
+          <button class="weight-btn" data-w="distance" data-i18n="btn_dist">מרחק</button>
+        </div>
+      </div>
+      <button class="run-btn" data-i18n="btn_run" onclick="runAstar()">חשב מסלול ▶</button>
+    </div>
+    <div class="engine-bar">
+      <div class="engine-stat"><span data-i18n="stat_engine">מנוע</span>: <span>A* + Euclidean-3D</span></div>
+      <div class="engine-stat"><span data-i18n="stat_nodes_label">צמתים בגרף</span>: <span>53</span></div>
+      <div class="engine-stat"><span data-i18n="stat_edges_label">קשתות</span>: <span>118</span></div>
+      <div class="engine-stat"><span data-i18n="stat_scanned">צמתים שנסרקו</span>: <span id="scanned-val">—</span></div>
+      <div class="engine-stat"><span data-i18n="stat_runtime">זמן ריצה</span>: <span id="runtime-val">—</span></div>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div class="card result-card" id="result-card">
+    <div id="error-area"></div>
+    <div id="stats-area" class="stats-grid"></div>
+    <div>
+      <div class="section-title" data-i18n="result_path_title">מסלול</div>
+      <div class="path-display" id="path-display"></div>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div class="card">
+    <div class="section-title" data-i18n="map_title">מפת קמפוס</div>
+    <div class="canvas-controls" id="floor-btns"></div>
+    <canvas id="map" height="480"></canvas>
+  </div>
+</div>
+
+<script>
+// ── TRANSLATIONS ──────────────────────────────────────────────────────────────
+
+const TRANSLATIONS = {
+  he: {
+    dir:"rtl", header_subtitle:"המסלול מחושב באמצעות אלגוריתם A-Star",
+    label_source:"נקודת מוצא", label_dest:"יעד", label_optimize:"מיטוב",
+    btn_time:"זמן", btn_dist:"מרחק", btn_run:"חשב מסלול ▶",
+    stat_engine:"מנוע", stat_nodes_label:"צמתים בגרף", stat_edges_label:"קשתות",
+    stat_scanned:"צמתים שנסרקו", stat_runtime:"זמן ריצה",
+    result_path_title:"מסלול", map_title:"מפת קמפוס",
+    floor_prefix:"קומה", path_arrow:"←",
+    no_path:(s,t)=>`לא נמצא מסלול בין ${s} ל-${t}.`,
+    lbl_dist:"מרחק (מ׳)", lbl_time:"זמן הליכה (שנ׳)", lbl_stops:"עצירות ביניים",
+    lbl_scanned:"צמתים שנסרקו", lbl_compute:"זמן חישוב (μs)",
+    leg_start:"מוצא", leg_end:"יעד", leg_path:"מסלול",
+    leg_elevator:"מעלית", leg_entrance:"כניסה", leg_classroom:"כיתה",
+    no_nodes_floor:"אין צמתים בקומה זו",
+  },
+  ar: {
+    dir:"rtl", header_subtitle:"المسار محسوب بخوارزمية A*",
+    label_source:"نقطة الانطلاق", label_dest:"الوجهة", label_optimize:"تحسين",
+    btn_time:"وقت", btn_dist:"مسافة", btn_run:"احسب المسار ▶",
+    stat_engine:"المحرك", stat_nodes_label:"عقد الرسم", stat_edges_label:"حواف",
+    stat_scanned:"عقد مفحوصة", stat_runtime:"وقت التشغيل",
+    result_path_title:"المسار", map_title:"خريطة الحرم الجامعي",
+    floor_prefix:"الطابق", path_arrow:"←",
+    no_path:(s,t)=>`لم يُعثر على مسار بين ${s} و ${t}.`,
+    lbl_dist:"المسافة (م)", lbl_time:"وقت المشي (ث)", lbl_stops:"نقاط وسيطة",
+    lbl_scanned:"عقد مفحوصة", lbl_compute:"وقت الحساب (μs)",
+    leg_start:"البداية", leg_end:"الوجهة", leg_path:"المسار",
+    leg_elevator:"مصعد", leg_entrance:"مدخل", leg_classroom:"فصل",
+    no_nodes_floor:"لا توجد عقد في هذا الطابق",
+  },
+  en: {
+    dir:"ltr", header_subtitle:"Route calculated using A* Algorithm",
+    label_source:"Starting Point", label_dest:"Destination", label_optimize:"Optimize",
+    btn_time:"Time", btn_dist:"Distance", btn_run:"Find Route ▶",
+    stat_engine:"Engine", stat_nodes_label:"Graph nodes", stat_edges_label:"Edges",
+    stat_scanned:"Nodes scanned", stat_runtime:"Runtime",
+    result_path_title:"Route", map_title:"Campus Map",
+    floor_prefix:"Floor", path_arrow:"→",
+    no_path:(s,t)=>`No route found between ${s} and ${t}.`,
+    lbl_dist:"Distance (m)", lbl_time:"Walk time (sec)", lbl_stops:"Waypoints",
+    lbl_scanned:"Nodes scanned", lbl_compute:"Compute time (μs)",
+    leg_start:"Start", leg_end:"End", leg_path:"Path",
+    leg_elevator:"Elevator", leg_entrance:"Entrance", leg_classroom:"Classroom",
+    no_nodes_floor:"No nodes on this floor",
+  },
+  fr: {
+    dir:"ltr", header_subtitle:"Itinéraire calculé par l'algorithme A*",
+    label_source:"Point de départ", label_dest:"Destination", label_optimize:"Optimiser",
+    btn_time:"Temps", btn_dist:"Distance", btn_run:"Calculer ▶",
+    stat_engine:"Moteur", stat_nodes_label:"Nœuds du graphe", stat_edges_label:"Arêtes",
+    stat_scanned:"Nœuds scannés", stat_runtime:"Temps d'exécution",
+    result_path_title:"Itinéraire", map_title:"Carte du campus",
+    floor_prefix:"Étage", path_arrow:"→",
+    no_path:(s,t)=>`Aucun chemin trouvé entre ${s} et ${t}.`,
+    lbl_dist:"Distance (m)", lbl_time:"Temps de marche (s)", lbl_stops:"Étapes intermédiaires",
+    lbl_scanned:"Nœuds scannés", lbl_compute:"Calcul (μs)",
+    leg_start:"Départ", leg_end:"Arrivée", leg_path:"Chemin",
+    leg_elevator:"Ascenseur", leg_entrance:"Entrée", leg_classroom:"Salle",
+    no_nodes_floor:"Aucun nœud à cet étage",
+  },
+};
+
+const NODE_NAMES = {
+  he: {
+    "1":"שער גבעת מרדכי","2":"שער כניסה תחתון","3":"אודיטוריום",
+    "4":"מעלית 0","5":"פינת ישיבה","6":"פינת למידה 0","7":"מרכז שירות",
+    "8":"מרכז מודיעין","9":"קפיטריה","10":"בית כנסת","11":"מחשוב",
+    "12":"גן עוזי","13":"אגודה","14":"כניסה 0","15":"שער רכבים",
+    "16":"שער בית הכרם","17":"שער ראשי","18":"שירותים -2","19":"שירותים -1",
+    "20":"שירותים 0","21":"שירותים 1","22":"שירותים 2","23":"שירותים 3",
+    "24":"c-103","25":"c-104","26":"c-105","27":"c-106",
+    "28":"c102","29":"c103","30":"c104","31":"c105","32":"c106","33":"c107",
+    "34":"c108","35":"c109","36":"c110","37":"c202","38":"c203","39":"c204",
+    "40":"c205","41":"c206","42":"c207","43":"c208","44":"c209","45":"c210",
+    "46":"פינת למידה 3","47":"ספריה",
+    "48":"מעלית -2","49":"מעלית -1","50":"מעלית 1","51":"מעלית 2","52":"מעלית 3","53":"מעלית -3",
+  },
+  ar: {
+    "1":"بوابة جبعات مردخاي","2":"البوابة السفلية","3":"قاعة المحاضرات",
+    "4":"المصعد 0","5":"ركن الجلوس","6":"ركن التعلم 0","7":"مركز الخدمات",
+    "8":"مركز المعلومات","9":"الكافتيريا","10":"الكنيس","11":"قسم الحوسبة",
+    "12":"حديقة عوزي","13":"الاتحاد الطلابي","14":"المدخل 0","15":"بوابة السيارات",
+    "16":"بوابة بيت هكيرم","17":"البوابة الرئيسية","18":"دورات المياه -2","19":"دورات المياه -1",
+    "20":"دورات المياه 0","21":"دورات المياه 1","22":"دورات المياه 2","23":"دورات المياه 3",
+    "24":"c-103","25":"c-104","26":"c-105","27":"c-106",
+    "28":"c102","29":"c103","30":"c104","31":"c105","32":"c106","33":"c107",
+    "34":"c108","35":"c109","36":"c110","37":"c202","38":"c203","39":"c204",
+    "40":"c205","41":"c206","42":"c207","43":"c208","44":"c209","45":"c210",
+    "46":"ركن التعلم 3","47":"المكتبة",
+    "48":"المصعد -2","49":"المصعد -1","50":"المصعد 1","51":"المصعد 2","52":"المصعد 3","53":"المصعد -3",
+  },
+  en: {
+    "1":"Givat Mordechai Gate","2":"Lower Entrance","3":"Auditorium",
+    "4":"Elevator 0","5":"Seating Area","6":"Study Corner 0","7":"Service Center",
+    "8":"Info Center","9":"Cafeteria","10":"Synagogue","11":"Computing Dept.",
+    "12":"Uzi Garden","13":"Student Union","14":"Entrance 0","15":"Vehicle Gate",
+    "16":"Beit HaKerem Gate","17":"Main Entrance","18":"Restrooms -2","19":"Restrooms -1",
+    "20":"Restrooms 0","21":"Restrooms 1","22":"Restrooms 2","23":"Restrooms 3",
+    "24":"c-103","25":"c-104","26":"c-105","27":"c-106",
+    "28":"c102","29":"c103","30":"c104","31":"c105","32":"c106","33":"c107",
+    "34":"c108","35":"c109","36":"c110","37":"c202","38":"c203","39":"c204",
+    "40":"c205","41":"c206","42":"c207","43":"c208","44":"c209","45":"c210",
+    "46":"Study Corner 3","47":"Library",
+    "48":"Elevator -2","49":"Elevator -1","50":"Elevator 1","51":"Elevator 2","52":"Elevator 3","53":"Elevator -3",
+  },
+  fr: {
+    "1":"Portail Givat Mordechai","2":"Entrée inférieure","3":"Auditorium",
+    "4":"Ascenseur 0","5":"Coin salon","6":"Coin d'étude 0","7":"Centre de services",
+    "8":"Centre d'info","9":"Cafétéria","10":"Synagogue","11":"Informatique",
+    "12":"Jardin Uzi","13":"Syndicat étudiant","14":"Entrée 0","15":"Portail véhicules",
+    "16":"Portail Beit HaKerem","17":"Entrée principale","18":"Toilettes -2","19":"Toilettes -1",
+    "20":"Toilettes 0","21":"Toilettes 1","22":"Toilettes 2","23":"Toilettes 3",
+    "24":"c-103","25":"c-104","26":"c-105","27":"c-106",
+    "28":"c102","29":"c103","30":"c104","31":"c105","32":"c106","33":"c107",
+    "34":"c108","35":"c109","36":"c110","37":"c202","38":"c203","39":"c204",
+    "40":"c205","41":"c206","42":"c207","43":"c208","44":"c209","45":"c210",
+    "46":"Coin d'étude 3","47":"Bibliothèque",
+    "48":"Ascenseur -2","49":"Ascenseur -1","50":"Ascenseur 1","51":"Ascenseur 2","52":"Ascenseur 3","53":"Ascenseur -3",
+  },
+};
+
+// ── DATA (מעודכן — תיקון קואורדינטות ו-edges כיתות) ───────────────────────────
+
+const NODES = {
+  "1":  { floor:-3, x:-50,  y:-90, type:"כניסה"   },
+  "2":  { floor:-2, x:-10,  y:0,   type:"כניסה"   },
+  "3":  { floor:-2, x:-40,  y:0,   type:"אולם"    },
+  "4":  { floor:0,  x:2,    y:0,   type:"תשתית"   },
+  "5":  { floor:0,  x:-5,   y:6,   type:"ישיבה"   },
+  "6":  { floor:0,  x:16,   y:0,   type:"למידה"   },
+  "7":  { floor:0,  x:24,   y:3,   type:"שירות"   },
+  "8":  { floor:0,  x:0,    y:8,   type:"שירות"   },
+  "9":  { floor:0,  x:15,   y:25,  type:"מזון"    },
+  "10": { floor:0,  x:15,   y:35,  type:"שירות"   },
+  "11": { floor:0,  x:35,   y:25,  type:"שירות"   },
+  "12": { floor:0,  x:30,   y:30,  type:"חוץ"     },
+  "13": { floor:0,  x:35,   y:-10, type:"שירות"   },
+  "14": { floor:0,  x:32,   y:35,  type:"כניסה"   },
+  "15": { floor:0,  x:200,  y:35,  type:"כניסה"   },
+  "16": { floor:0,  x:-50,  y:45,  type:"כניסה"   },
+  "17": { floor:0,  x:-15,  y:30,  type:"כניסה"   },
+  "18": { floor:-2, x:0,    y:0,   type:"שירות"   },
+  "19": { floor:-1, x:0,    y:0,   type:"שירות"   },
+  "20": { floor:0,  x:0,    y:0,   type:"מרכזי"   },
+  "21": { floor:1,  x:0,    y:0,   type:"שירות"   },
+  "22": { floor:2,  x:0,    y:0,   type:"שירות"   },
+  "23": { floor:3,  x:0,    y:0,   type:"שירות"   },
+  "24": { floor:-1, x:-8,   y:0,   type:"כיתה"    },
+  "25": { floor:-1, x:-12,  y:0,   type:"כיתה"    },
+  "26": { floor:-1, x:-16,  y:0,   type:"כיתה"    },
+  "27": { floor:-1, x:-20,  y:0,   type:"כיתה"    },
+  "28": { floor:1,  x:16,   y:0,   type:"כיתה"    },
+  "29": { floor:1,  x:12,   y:0,   type:"כיתה"    },
+  "30": { floor:1,  x:8,    y:0,   type:"כיתה"    },
+  "31": { floor:1,  x:4,    y:0,   type:"כיתה"    },
+  "32": { floor:1,  x:0,    y:0,   type:"כיתה"    },
+  "33": { floor:1,  x:-4,   y:0,   type:"כיתה"    },
+  "34": { floor:1,  x:-8,   y:0,   type:"כיתה"    },
+  "35": { floor:1,  x:-12,  y:0,   type:"כיתה"    },
+  "36": { floor:1,  x:-16,  y:0,   type:"כיתה"    },
+  "37": { floor:2,  x:16,   y:0,   type:"כיתה"    },
+  "38": { floor:2,  x:12,   y:0,   type:"כיתה"    },
+  "39": { floor:2,  x:8,    y:0,   type:"כיתה"    },
+  "40": { floor:2,  x:4,    y:0,   type:"כיתה"    },
+  "41": { floor:2,  x:0,    y:0,   type:"כיתה"    },
+  "42": { floor:2,  x:-4,   y:0,   type:"כיתה"    },
+  "43": { floor:2,  x:-8,   y:0,   type:"כיתה"    },
+  "44": { floor:2,  x:-12,  y:0,   type:"כיתה"    },
+  "45": { floor:2,  x:-16,  y:0,   type:"כיתה"    },
+  "46": { floor:3,  x:-19,  y:0,   type:"למידה"   },
+  "47": { floor:3,  x:-10,  y:0,   type:"שירות"   },
+  "48": { floor:-2, x:2,    y:0,   type:"תשתית"   },
+  "49": { floor:-1, x:2,    y:0,   type:"תשתית"   },
+  "50": { floor:1,  x:2,    y:0,   type:"תשתית"   },
+  "51": { floor:2,  x:2,    y:0,   type:"תשתית"   },
+  "52": { floor:3,  x:2,    y:0,   type:"תשתית"   },
+  "53": { floor:-3, x:2,    y:0,   type:"תשתית"   },
+};
+
+const RAW_EDGES = [
+  ["1","2",110,105,"מדרגות"],
+  ["2","3",30,30,"מסדרון"],
+  ["2","18",10,14,"מסדרון"],
+  ["2","19",20,30,"מדרגות"],
+  ["16","17",45,40,"מסדרון"],
+  ["17","9",35,30,"מסדרון"],
+  ["9","10",10,7,"מסדרון"],
+  ["10","14",19,18,"מסדרון"],
+  ["14","15",180,128,"מסדרון"],
+  ["20","8",8,17,"מסדרון"],
+  ["20","6",16,13,"מסדרון"],
+  ["6","13",24,23,"מסדרון"],
+  ["6","7",9,8,"מסדרון"],
+  ["7","11",27,29,"מסדרון"],
+  ["11","12",8,9,"מסדרון"],
+  ["12","9",25,25,"מסדרון"],
+  ["47","46",9,8,"מסדרון"],
+  ["23","47",10,8,"מסדרון"],
+  ["18","19",12,10,"מדרגות"],
+  ["19","20",12,10,"מדרגות"],
+  ["20","21",12,10,"מדרגות"],
+  ["21","22",12,10,"מדרגות"],
+  ["22","23",12,10,"מדרגות"],
+  ["19","24",8,13,"מסדרון"],
+  ["24","25",4,5,"מסדרון"],
+  ["25","26",4,5,"מסדרון"],
+  ["26","27",4,5,"מסדרון"],
+  ["21","31",4,5,"מסדרון"],
+  ["28","29",4,5,"מסדרון"],
+  ["29","30",4,5,"מסדרון"],
+  ["30","31",4,5,"מסדרון"],
+  ["31","32",4,5,"מסדרון"],
+  ["32","33",4,5,"מסדרון"],
+  ["33","34",4,5,"מסדרון"],
+  ["34","35",4,5,"מסדרון"],
+  ["35","36",4,5,"מסדרון"],
+  ["22","40",4,5,"מסדרון"],
+  ["37","38",4,5,"מסדרון"],
+  ["38","39",4,5,"מסדרון"],
+  ["39","40",4,5,"מסדרון"],
+  ["40","41",4,5,"מסדרון"],
+  ["41","42",4,5,"מסדרון"],
+  ["42","43",4,5,"מסדרון"],
+  ["43","44",4,5,"מסדרון"],
+  ["44","45",4,5,"מסדרון"],
+  ["18","48",2,5,"מסדרון"],
+  ["19","49",2,5,"מסדרון"],
+  ["20","4",2,5,"מסדרון"],
+  ["21","50",2,5,"מסדרון"],
+  ["22","51",2,5,"מסדרון"],
+  ["23","52",2,5,"מסדרון"],
+  ["53","48",3,25,"מעלית"],
+  ["48","49",3,25,"מעלית"],
+  ["49","4",3,25,"מעלית"],
+  ["4","50",3,25,"מעלית"],
+  ["50","51",3,25,"מעלית"],
+  ["51","52",3,25,"מעלית"],
+  ["5","20",8,10,"מסדרון"],
+  ["5","8",6,8,"מסדרון"],
+];
+
+const ADJ = {};
+for (const id of Object.keys(NODES)) ADJ[id] = [];
+for (const [s, t, dist, time, etype] of RAW_EDGES) {
+  ADJ[s].push({ id: t, distance: dist, time: time, type: etype });
+  ADJ[t].push({ id: s, distance: dist, time: time, type: etype });
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
+let currentLang = "he";
+function T() { return TRANSLATIONS[currentLang]; }
+function nodeName(id) { return (NODE_NAMES[currentLang] || NODE_NAMES.he)[String(id)] || String(id); }
+function floorLabel(fl) {
+  const p = T().floor_prefix;
+  return fl === 0 ? `${p} 0` : fl > 0 ? `${p} +${fl}` : `${p} ${fl}`;
+}
+
+function applyLang(code) {
+  currentLang = code;
+  const t = T();
+  document.documentElement.lang = code;
+  document.documentElement.dir = t.dir;
+
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.dataset.i18n;
+    if (t[key] && typeof t[key] === "string") el.textContent = t[key];
+  });
+
+  document.querySelectorAll(".lang-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.lang === code);
+  });
+
+  const prevSrc = document.getElementById("src").value;
+  const prevTgt = document.getElementById("tgt").value;
+  populateSelects();
+  document.getElementById("src").value = prevSrc;
+  document.getElementById("tgt").value = prevTgt;
+
+  document.getElementById("floor-btns").innerHTML = "";
+  buildFloorBtns();
+  drawMap(lastResult ? lastResult.path : [], lastSrc, lastTgt);
+  if (lastResult) renderResult(lastResult, lastSrc, lastTgt, lastElapsed);
+}
+
+// ── A* ────────────────────────────────────────────────────────────────────────
+
+function heuristic(a, b) {
+  const na = NODES[a], nb = NODES[b];
+  const dx = na.x - nb.x, dy = na.y - nb.y, dz = (na.floor - nb.floor) * 3;
+  return Math.sqrt(dx*dx + dy*dy + dz*dz);
+}
+
+function astar(src, tgt, weight) {
+  if (!NODES[src] || !NODES[tgt]) return null;
+  if (src === tgt) return { path:[src], cost:0, scanned:1, visited:[src] };
+  const g = {}, f = {}, prev = {}, visited = [];
+  const open = new MinHeap();
+  for (const id of Object.keys(NODES)) g[id] = Infinity;
+  g[src] = 0; f[src] = heuristic(src, tgt);
+  open.push(src, f[src]);
+  while (!open.empty()) {
+    const cur = open.pop();
+    visited.push(cur);
+    if (cur === tgt) {
+      const path = []; let n = cur;
+      while (n) { path.unshift(n); n = prev[n]; }
+      return { path, cost: g[tgt], scanned: visited.length, visited };
+    }
+    for (const nb of (ADJ[cur] || [])) {
+      const w = weight === "distance" ? nb.distance : nb.time;
+      const ng = g[cur] + w;
+      if (ng < g[nb.id]) {
+        g[nb.id] = ng; prev[nb.id] = cur;
+        f[nb.id] = ng + heuristic(nb.id, tgt);
+        open.push(nb.id, f[nb.id]);
+      }
+    }
+  }
+  return null;
+}
+
+class MinHeap {
+  constructor() { this.h = []; }
+  push(id, p) {
+    this.h.push({id,p}); let i = this.h.length-1;
+    while (i > 0) {
+      const par = (i-1)>>1;
+      if (this.h[par].p <= this.h[i].p) break;
+      [this.h[par],this.h[i]] = [this.h[i],this.h[par]]; i = par;
+    }
+  }
+  pop() {
+    const top = this.h[0]; const last = this.h.pop();
+    if (this.h.length) {
+      this.h[0] = last; let i=0;
+      while(true){
+        let s=i, l=2*i+1, r=2*i+2;
+        if(l<this.h.length && this.h[l].p<this.h[s].p) s=l;
+        if(r<this.h.length && this.h[r].p<this.h[s].p) s=r;
+        if(s===i) break;
+        [this.h[s],this.h[i]]=[this.h[i],this.h[s]]; i=s;
+      }
+    }
+    return top.id;
+  }
+  empty() { return this.h.length===0; }
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+
+let activeWeight = "time";
+let lastResult = null;
+let lastSrc = null, lastTgt = null, lastElapsed = 0;
+let activeFloor = 0;
+
+function populateSelects() {
+  const byFloor = {};
+  for (const [id, n] of Object.entries(NODES)) {
+    if (!byFloor[n.floor]) byFloor[n.floor] = [];
+    byFloor[n.floor].push(id);
+  }
+  const floors = Object.keys(byFloor).map(Number).sort((a,b)=>a-b);
+  [document.getElementById("src"), document.getElementById("tgt")].forEach((sel, i) => {
+    sel.innerHTML = "";
+    for (const fl of floors) {
+      const og = document.createElement("optgroup");
+      og.label = floorLabel(fl);
+      for (const id of byFloor[fl]) {
+        const o = document.createElement("option");
+        o.value = id; o.textContent = `${nodeName(id)} (${id})`;
+        og.appendChild(o);
+      }
+      sel.appendChild(og);
+    }
+    if (i===0) sel.value = "17";
+    else       sel.value = "36";
+  });
+}
+
+document.querySelectorAll(".weight-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".weight-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    activeWeight = btn.dataset.w;
+  });
+});
+
+function runAstar() {
+  const src = document.getElementById("src").value;
+  const tgt = document.getElementById("tgt").value;
+  const card = document.getElementById("result-card");
+  card.classList.add("visible");
+  const t0 = performance.now();
+  const res = astar(src, tgt, activeWeight);
+  const elapsed = performance.now() - t0;
+  lastSrc = src; lastTgt = tgt; lastElapsed = elapsed;
+  document.getElementById("scanned-val").textContent = res ? res.scanned : "—";
+  document.getElementById("runtime-val").textContent = elapsed.toFixed(3) + " ms";
+  if (res) { lastResult = res; activeFloor = NODES[src].floor; drawMap(res.path, src, tgt); highlightFloorBtn(); }
+  else { lastResult = null; drawMap([], src, tgt); }
+  renderResult(res, src, tgt, elapsed);
+}
+
+function renderResult(res, src, tgt, elapsed) {
+  const t = T();
+  const errArea = document.getElementById("error-area");
+  const statsArea = document.getElementById("stats-area");
+  const pathDisplay = document.getElementById("path-display");
+  errArea.innerHTML = ""; statsArea.innerHTML = ""; pathDisplay.innerHTML = "";
+  if (!res) {
+    errArea.innerHTML = `<div class="error-msg">${t.no_path(nodeName(src), nodeName(tgt))}</div>`;
+    return;
+  }
+  let totalDist = 0, totalTime = 0;
+  for (let i=0; i<res.path.length-1; i++) {
+    const edge = ADJ[res.path[i]].find(e=>e.id===res.path[i+1]);
+    if (edge) { totalDist += edge.distance; totalTime += edge.time; }
+  }
+  const stops = res.path.length - 2;
+  const runtimeUs = (elapsed * 1000).toFixed(1);
+  statsArea.innerHTML = `
+    <div class="stat-box"><div class="val">${totalDist}</div><div class="lbl">${t.lbl_dist}</div></div>
+    <div class="stat-box"><div class="val">${totalTime}</div><div class="lbl">${t.lbl_time}</div></div>
+    <div class="stat-box"><div class="val">${stops > 0 ? stops : '—'}</div><div class="lbl">${t.lbl_stops}</div></div>
+    <div class="stat-box"><div class="val">${res.scanned}</div><div class="lbl">${t.lbl_scanned}</div></div>
+    <div class="stat-box"><div class="val">${runtimeUs}</div><div class="lbl">${t.lbl_compute}</div></div>
+  `;
+  for (let i=0; i<res.path.length; i++) {
+    const nid = res.path[i];
+    const nd = NODES[nid];
+    let cls = "path-node";
+    if (i===0) cls += " start";
+    else if (i===res.path.length-1) cls += " end";
+    else if (nd.type==="תשתית") cls += " elevator";
+    pathDisplay.innerHTML += `<span class="${cls}"><span>${nodeName(nid)}</span><span class="floor-tag">${floorLabel(nd.floor)}</span></span>`;
+    if (i < res.path.length-1) pathDisplay.innerHTML += `<span class="path-arrow">${t.path_arrow}</span>`;
+  }
+}
+
+// ── Canvas map ────────────────────────────────────────────────────────────────
+
+function buildFloorBtns() {
+  const floors = [...new Set(Object.values(NODES).map(n=>n.floor))].sort((a,b)=>a-b);
+  const cont = document.getElementById("floor-btns");
+  for (const fl of floors) {
+    const btn = document.createElement("button");
+    btn.className = "floor-btn" + (fl===0?" active":"");
+    btn.textContent = floorLabel(fl);
+    btn.dataset.floor = fl;
+    btn.addEventListener("click", () => {
+      activeFloor = Number(btn.dataset.floor);
+      highlightFloorBtn();
+      drawMap(lastResult ? lastResult.path : [], lastSrc, lastTgt);
+    });
+    cont.appendChild(btn);
+  }
+}
+
+function highlightFloorBtn() {
+  document.querySelectorAll(".floor-btn").forEach(b=>{
+    b.classList.toggle("active", Number(b.dataset.floor)===activeFloor);
+  });
+}
+
+function drawMap(path, src, tgt) {
+  const t = T();
+  const canvas = document.getElementById("map");
+  const W = canvas.offsetWidth || 800;
+  canvas.width = W;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0,0,W,canvas.height);
+  const floorNodes = Object.entries(NODES).filter(([,n])=>n.floor===activeFloor);
+  if (!floorNodes.length) {
+    ctx.fillStyle="#8b949e"; ctx.font="16px Arial"; ctx.textAlign="center";
+    ctx.fillText(t.no_nodes_floor, W/2, canvas.height/2);
+    return;
+  }
+  const margin = 50;
+  const xs = floorNodes.map(([,n])=>n.x), ys = floorNodes.map(([,n])=>n.y);
+  let minX=Math.min(...xs), maxX=Math.max(...xs);
+  let minY=Math.min(...ys), maxY=Math.max(...ys);
+  if (minX===maxX) { minX-=5; maxX+=5; }
+  if (minY===maxY) { minY-=5; maxY+=5; }
+  const sc = Math.min((W-2*margin)/(maxX-minX), (canvas.height-2*margin)/(maxY-minY));
+  const cx = id => margin + (NODES[id].x-minX)*sc + (W-2*margin-(maxX-minX)*sc)/2;
+  const cy = id => canvas.height - margin - (NODES[id].y-minY)*sc - (canvas.height-2*margin-(maxY-minY)*sc)/2;
+  const pathSet = new Set(path);
+  const pathEdges = new Set();
+  for (let i=0;i<path.length-1;i++) pathEdges.add(`${path[i]}-${path[i+1]}`);
+
+  for (const [s,tg,,,etype] of RAW_EDGES) {
+    if (NODES[s].floor!==activeFloor || NODES[tg].floor!==activeFloor) continue;
+    const onPath = pathEdges.has(`${s}-${tg}`) || pathEdges.has(`${tg}-${s}`);
+    ctx.beginPath(); ctx.moveTo(cx(s), cy(s)); ctx.lineTo(cx(tg), cy(tg));
+    if (onPath) { ctx.strokeStyle="#388bfd"; ctx.lineWidth=3; }
+    else if (etype==="מדרגות") { ctx.strokeStyle="#f0883e"; ctx.lineWidth=1.5; }
+    else { ctx.strokeStyle="#21262d"; ctx.lineWidth=1.5; }
+    ctx.stroke();
+  }
+  for (const [s,tg,,,etype] of RAW_EDGES) {
+    if (etype!=="מעלית") continue;
+    const sOn = NODES[s].floor===activeFloor, tOn = NODES[tg].floor===activeFloor;
+    if (!sOn && !tOn) continue;
+    const onPath = pathEdges.has(`${s}-${tg}`) || pathEdges.has(`${tg}-${s}`);
+    if (!onPath) continue;
+    const nodeId = sOn ? s : tg;
+    ctx.beginPath(); ctx.arc(cx(nodeId), cy(nodeId), 14, 0, 2*Math.PI);
+    ctx.strokeStyle="#d2a8ff"; ctx.lineWidth=2; ctx.setLineDash([4,3]);
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  for (const [id, node] of floorNodes) {
+    const x=cx(id), y=cy(id);
+    const onPath=pathSet.has(id), isStart=id===src, isEnd=id===tgt;
+    ctx.beginPath(); ctx.arc(x, y, onPath?8:5, 0, 2*Math.PI);
+    if (isStart) ctx.fillStyle="#3fb950";
+    else if (isEnd) ctx.fillStyle="#f78166";
+    else if (node.type==="תשתית") ctx.fillStyle="#d2a8ff";
+    else if (node.type==="כניסה") ctx.fillStyle="#79c0ff";
+    else if (node.type==="כיתה") ctx.fillStyle="#56d364";
+    else if (onPath) ctx.fillStyle="#388bfd";
+    else ctx.fillStyle="#484f58";
+    ctx.fill();
+    if (onPath||isStart||isEnd) { ctx.strokeStyle="#0d1117"; ctx.lineWidth=1.5; ctx.stroke(); }
+    const lbl = nodeName(id);
+    ctx.fillStyle=onPath?"#e6edf3":"#8b949e";
+    ctx.font=onPath?"bold 11px Arial":"10px Arial";
+    ctx.textAlign="center";
+    ctx.fillText(lbl.length>8?lbl.slice(0,8)+"…":lbl, x, y+20);
+  }
+  // Legend
+  const legend = [
+    {color:"#3fb950",key:"leg_start"},{color:"#f78166",key:"leg_end"},
+    {color:"#388bfd",key:"leg_path"},{color:"#d2a8ff",key:"leg_elevator"},
+    {color:"#79c0ff",key:"leg_entrance"},{color:"#56d364",key:"leg_classroom"},
+  ];
+  let lx=14;
+  ctx.textAlign="left";
+  for (const {color,key} of legend) {
+    const label = t[key] || key;
+    ctx.beginPath(); ctx.arc(lx+6,14,5,0,2*Math.PI);
+    ctx.fillStyle=color; ctx.fill();
+    ctx.fillStyle="#8b949e"; ctx.font="10px Arial";
+    ctx.fillText(label, lx+14, 18);
+    lx += ctx.measureText(label).width + 22;
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+populateSelects();
+buildFloorBtns();
+drawMap([], null, null);
+</script>
+</body>
+</html>
